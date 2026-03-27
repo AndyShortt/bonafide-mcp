@@ -1,0 +1,39 @@
+{
+  "name": "bonafide-mcp",
+  "version": "1.0.0",
+  "description": "Proof of AI Agent through MCP-native multi-turn verification",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "bonafide-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "website:dev": "cd website && npx vite",
+    "website:build": "cd website && npx vite build"
+  },
+  "keywords": [
+    "mcp",
+    "ai-agent",
+    "verification",
+    "reverse-captcha",
+    "model-context-protocol"
+  ],
+  "author": "Andrew Shortt",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "jsonwebtoken": "^9.0.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
