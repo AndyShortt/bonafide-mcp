@@ -1,8 +1,10 @@
 # BonafideMCP
 
-**Proof of AI Agent through MCP-native multi-turn verification.**
+**Concept implementation of agent verification using multi-turn MCP challenges.**
 
-BonafideMCP is an open-source [MCP server](https://modelcontextprotocol.io) that verifies whether a connecting system is a genuine AI agent — not merely a proxy relaying to a remote LLM API. It does this by using MCP's `sampling/createMessage` primitive to push chained challenges directly into the agent's LLM runtime within an established session.
+BonafideMCP is named after the documents that secret agents carry to prove their 'bona fide' identities.
+
+BonafideMCP is an open-source [MCP server](https://modelcontextprotocol.io) that demonstrates how MCP's `sampling/createMessage` primitive can be used to conduct multi-turn, chained verification challenges within a persistent bidirectional session — verifying that a connecting system is a genuine AI agent with an LLM runtime, not just a thin proxy.
 
 ## The Idea
 
@@ -144,7 +146,7 @@ bonafide-mcp/
 └── tsconfig.json
 ```
 
-## Prior Art & Credits
+## Credits
 
 BonafideMCP builds on work by others:
 
