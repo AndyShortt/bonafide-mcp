@@ -5,3 +5,4 @@ website/dist/
 *.d.ts.map
 .env
 .DS_Store
+.claude/

@@ -1,14 +1,14 @@
 /**
- * Constrained Text Generation Challenge
+ * Constrained Text Challenge — generation and verification.
  *
- * Inspired by MoltCaptcha's SMHL (Semantic-Mathematical Hybrid Lock) approach.
- * Requires simultaneous satisfaction of semantic and structural constraints.
- *
- * Prior art: MoltCaptcha (SMHL), Clawptcha (timing constraints)
- * Contribution: Delivery via MCP Sampling within a persistent session.
+ * Generates prompts requiring a single sentence that satisfies four
+ * simultaneous constraints: starting letter, exact word count, a required
+ * keyword, and topical coherence. Verification checks all four, with topic
+ * relevance measured via cosine similarity (all-MiniLM-L6-v2, threshold ≥ 0.4).
  */
 
 import type { ChallengeParams, ChainContext, CheckResult } from "./types.js";
+import { checkTopicRelevance } from "../verification/embeddings.js";
 
 // ── Seed data ──────────────────────────────────────────────────────────────
 
@@ -115,10 +115,10 @@ export function generateConstrainedTextChallenge(
 
 // ── Verification ───────────────────────────────────────────────────────────
 
-export function verifyConstrainedText(
+export async function verifyConstrainedText(
   response: string,
   constraints: Record<string, unknown>
-): { passed: boolean; checks: CheckResult[] } {
+): Promise<{ passed: boolean; checks: CheckResult[] }> {
   const text = response.trim().replace(/^["']|["']$/g, ""); // strip wrapping quotes
   const checks: CheckResult[] = [];
 
@@ -156,13 +156,21 @@ export function verifyConstrainedText(
     });
   }
 
-  // Check 4: Non-trivial (not just repeating the same word)
-  const uniqueWords = new Set(words.map((w) => w.toLowerCase()));
+  // Check 4: Topic relevance via cosine similarity (all-MiniLM-L6-v2, threshold ≥ 0.4)
+  // This enforces that the response was produced by an LLM reasoning about the topic,
+  // not by a bot pattern-matching topic keywords into an otherwise unrelated sentence.
+  const topic = constraints.topic as string;
+  const SIMILARITY_THRESHOLD = 0.4;
+  const { passed: topicPassed, score } = await checkTopicRelevance(
+    text,
+    topic,
+    SIMILARITY_THRESHOLD
+  );
   checks.push({
-    name: "non_trivial",
-    passed: uniqueWords.size >= Math.min(4, words.length),
-    expected: "≥4 unique words",
-    actual: String(uniqueWords.size),
+    name: "topic_relevance",
+    passed: topicPassed,
+    expected: `cosine similarity ≥ ${SIMILARITY_THRESHOLD} (topic: "${topic}")`,
+    actual: score.toFixed(3),
   });
 
   const passed = checks.every((c) => c.passed);

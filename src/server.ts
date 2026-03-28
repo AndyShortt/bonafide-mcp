@@ -1,16 +1,11 @@
 /**
  * BonafideMCP Server
  *
- * An MCP server that verifies AI agent capability through multi-turn
- * challenges delivered via the MCP Sampling primitive.
- *
- * Core idea: Use sampling/createMessage to push challenges into the
- * agent's LLM runtime within an established session, creating
- * properties (session binding, latency compounding, chaining) that
- * HTTP-based verification systems cannot replicate.
- *
- * Challenge design is adapted from MoltCaptcha (SMHL) and credited
- * as prior art. The contribution is the delivery mechanism.
+ * Defines the MCP server and its three tools (agent_verification,
+ * submit_response, check_status) and two resources (bonafide://token,
+ * bonafide://status). Handles both sampling mode — where challenges are
+ * pushed directly into the agent's LLM via sampling/createMessage — and
+ * tool-based fallback mode for clients that don't declare sampling capability.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -133,7 +128,7 @@ export function createBonafideMcpServer(): McpServer {
         };
       }
 
-      return handleToolBasedResponse(session.sessionId, args.response);
+      return await handleToolBasedResponse(session.sessionId, args.response);
     }
   );
 
@@ -344,7 +339,7 @@ async function runSamplingVerification(
     const responseText = extractSamplingResponseText(samplingResult);
 
     // Verify the response
-    const result = verifyResponse(challenge, responseText, roundStartMs);
+    const result = await verifyResponse(challenge, responseText, roundStartMs);
     recordRoundResult(sessionId, i, responseText, result);
     results.push({ passed: result.passed });
 
@@ -424,10 +419,10 @@ function runToolBasedFirstRound(
   };
 }
 
-function handleToolBasedResponse(
+async function handleToolBasedResponse(
   sessionId: string,
   responseText: string
-): { content: Array<{ type: "text"; text: string }> } {
+): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   const session = getSession(sessionId)!;
   const currentRound = session.currentRound;
   const round = session.rounds[currentRound];
@@ -447,7 +442,7 @@ function handleToolBasedResponse(
 
   // Verify the response
   const roundStartMs = round.startedAt ?? Date.now();
-  const result = verifyResponse(round.challenge, responseText, roundStartMs);
+  const result = await verifyResponse(round.challenge, responseText, roundStartMs);
   recordRoundResult(sessionId, currentRound, responseText, result);
 
   const sequence = getSequence(session.config.difficulty);
