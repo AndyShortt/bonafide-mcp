@@ -22,6 +22,7 @@ describe("computeCosineSimilarity (real model)", () => {
   it("scores identical strings at ~1.0", async () => {
     const text = "Astronomers use telescopes to observe distant stars.";
     const score = await computeCosineSimilarity(text, text);
+    console.log(`[identical strings] score=${score.toFixed(4)}`);
     expect(score).toBeGreaterThan(0.99);
   });
 
@@ -30,6 +31,7 @@ describe("computeCosineSimilarity (real model)", () => {
     const sentence =
       "Powerful telescopes reveal the structure of distant galaxies and nebulae.";
     const score = await computeCosineSimilarity(sentence, "astronomy");
+    console.log(`[on-topic astronomy] score=${score.toFixed(4)}`);
     expect(score).toBeGreaterThan(0.4);
   });
 
@@ -38,6 +40,7 @@ describe("computeCosineSimilarity (real model)", () => {
     const sentence =
       "The bakery opens early and sells fresh sourdough loaves every morning.";
     const score = await computeCosineSimilarity(sentence, "quantum physics");
+    console.log(`[off-topic baking/quantum] score=${score.toFixed(4)}`);
     expect(score).toBeLessThan(0.4);
   });
 
@@ -46,6 +49,7 @@ describe("computeCosineSimilarity (real model)", () => {
       "Some arbitrary sentence.",
       "marine biology"
     );
+    console.log(`[range check arbitrary/marine biology] score=${score.toFixed(4)}`);
     expect(score).toBeGreaterThanOrEqual(-1);
     expect(score).toBeLessThanOrEqual(1);
   });
@@ -55,6 +59,7 @@ describe("computeCosineSimilarity (real model)", () => {
     const b = "glaciology";
     const ab = await computeCosineSimilarity(a, b);
     const ba = await computeCosineSimilarity(b, a);
+    console.log(`[symmetry glaciology] score(A,B)=${ab.toFixed(4)} score(B,A)=${ba.toFixed(4)} diff=${Math.abs(ab - ba).toFixed(6)}`);
     expect(Math.abs(ab - ba)).toBeLessThan(0.001);
   });
 });
@@ -66,6 +71,7 @@ describe("checkTopicRelevance (real model)", () => {
     const response =
       "Volcanic eruptions release enormous amounts of lava and ash into the atmosphere.";
     const result = await checkTopicRelevance(response, "volcanic geology");
+    console.log(`[coherent/volcanic geology] score=${result.score.toFixed(4)} passed=${result.passed}`);
     expect(result.passed).toBe(true);
     expect(result.score).toBeGreaterThanOrEqual(0.4);
   });
@@ -85,6 +91,7 @@ describe("checkTopicRelevance (real model)", () => {
     ).score;
     const genuineScore = (await checkTopicRelevance(genuine, "astronomy"))
       .score;
+    console.log(`[keyword stuffing] stuffed=${stuffedScore.toFixed(4)} genuine=${genuineScore.toFixed(4)}`);
     // The genuine sentence should out-score the keyword list
     expect(genuineScore).toBeGreaterThan(stuffedScore);
   });
@@ -93,6 +100,7 @@ describe("checkTopicRelevance (real model)", () => {
     const response =
       "I enjoyed the pasta dish at the restaurant on the corner last Tuesday.";
     const result = await checkTopicRelevance(response, "cryptography");
+    console.log(`[off-topic pasta/cryptography] score=${result.score.toFixed(4)} passed=${result.passed}`);
     expect(result.passed).toBe(false);
     expect(result.score).toBeLessThan(0.4);
   });
@@ -103,6 +111,7 @@ describe("checkTopicRelevance (real model)", () => {
     // Should pass at 0.4 but potentially fail at a stricter 0.8
     const lenient = await checkTopicRelevance(response, "robotics", 0.4);
     const strict = await checkTopicRelevance(response, "robotics", 0.8);
+    console.log(`[threshold robotics] score=${lenient.score.toFixed(4)} lenient(0.4)=${lenient.passed} strict(0.8)=${strict.passed}`);
     expect(lenient.passed).toBe(true);
     expect(strict.passed).toBe(false);
   });
