@@ -50,6 +50,10 @@ export default function App() {
               <SpaceBetween size="m">
                 <Header variant="h2">What is BonafideMCP?</Header>
                 <Box variant="p">
+                  BonafideMCP is named after the documents that secret agents
+                  carry to prove their &lsquo;bona fide&rsquo; identities.
+                </Box>
+                <Box variant="p">
                   BonafideMCP is a concept implementation of{" "}
                   <strong>AI agent verification using the Model Context
                   Protocol (MCP)</strong>. It demonstrates how MCP's{" "}
