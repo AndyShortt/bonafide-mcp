@@ -1,10 +1,9 @@
 /**
- * Challenge type definitions for BonafideMCP.
+ * Shared type definitions for challenges, results, and session configuration.
  *
- * Two challenge types are implemented, both adapted from established
- * prior art (MoltCaptcha SMHL, aCAPTCHA, academic literature).
- * The contribution here is the delivery via MCP Sampling, not the
- * challenge designs themselves.
+ * Defines ChallengeParams (inputs to a round), ChallengeResult (outputs
+ * after verification), ChainContext (data passed between rounds), and
+ * DIFFICULTY_CONFIG (time budgets and round counts per difficulty level).
  */
 
 export type ChallengeType = "constrained_text" | "computed_field";

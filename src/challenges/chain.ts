@@ -1,13 +1,10 @@
 /**
- * Challenge Chaining Logic
+ * Challenge sequencing and chaining between rounds.
  *
- * Generates each round's challenge based on the previous round's
- * verified response. This serial dependency is the core architectural
- * contribution — it compounds proxy relay latency and requires full
- * context maintenance across rounds.
- *
- * Prior art for multi-round chaining: aCAPTCHA (HTTP-based).
- * Contribution: Chaining within MCP Sampling session.
+ * Defines the ordered challenge type sequence for each difficulty level and
+ * generates each round's challenge using extracted data from the previous
+ * response — for example, feeding a city name from a computed_field response
+ * into the topic constraint of the next constrained_text round.
  */
 
 import type { ChallengeParams, ChallengeType, ChainContext } from "./types.js";

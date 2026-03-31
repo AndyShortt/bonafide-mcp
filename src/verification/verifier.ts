@@ -13,11 +13,11 @@ import type {
 import { verifyConstrainedText } from "../challenges/constrained-text.js";
 import { verifyComputedField } from "../challenges/computed-field.js";
 
-export function verifyResponse(
+export async function verifyResponse(
   challenge: ChallengeParams,
   response: string,
   roundStartMs: number
-): ChallengeResult {
+): Promise<ChallengeResult> {
   const timeMs = Date.now() - roundStartMs;
 
   let passed: boolean;
@@ -26,7 +26,7 @@ export function verifyResponse(
 
   switch (challenge.type) {
     case "constrained_text": {
-      const result = verifyConstrainedText(
+      const result = await verifyConstrainedText(
         response,
         challenge.expectedConstraints
       );

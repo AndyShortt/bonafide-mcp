@@ -1,16 +1,11 @@
 /**
  * BonafideMCP Server
  *
- * An MCP server that verifies AI agent capability through multi-turn
- * challenges delivered via the MCP Sampling primitive.
- *
- * Core idea: Use sampling/createMessage to push challenges into the
- * agent's LLM runtime within an established session, creating
- * properties (session binding, latency compounding, chaining) that
- * HTTP-based verification systems cannot replicate.
- *
- * Challenge design is adapted from MoltCaptcha (SMHL) and credited
- * as prior art. The contribution is the delivery mechanism.
+ * Defines the MCP server and its three tools (agent_verification,
+ * submit_response, check_status) and two resources (bonafide://token,
+ * bonafide://status). Handles both sampling mode — where challenges are
+ * pushed directly into the agent's LLM via sampling/createMessage — and
+ * tool-based fallback mode for clients that don't declare sampling capability.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -28,6 +23,9 @@ import {
   setSessionToken,
   getElapsedMs,
   getSessionSummary,
+  isSessionPastDeadline,
+  isRoundTimedOut,
+  ROUND_TIMEOUT_MS,
   type SessionMode,
 } from "./session/manager.js";
 import { issueToken } from "./credentials/jwt.js";
@@ -67,8 +65,22 @@ export function createBonafideMcpServer(): McpServer {
       const hasSampling = !!clientCapabilities?.sampling;
       const mode: SessionMode = hasSampling ? "sampling" : "tool_based";
 
-      // Create and start session
-      const session = createSession(difficulty, mode);
+      // Create and start session (may throw if at capacity)
+      let session;
+      try {
+        session = createSession(difficulty, mode);
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error: "Server at capacity — too many concurrent sessions. Please try again later.",
+              }),
+            },
+          ],
+        };
+      }
       startSession(session.sessionId);
 
       if (mode === "sampling") {
@@ -133,7 +145,7 @@ export function createBonafideMcpServer(): McpServer {
         };
       }
 
-      return handleToolBasedResponse(session.sessionId, args.response);
+      return await handleToolBasedResponse(session.sessionId, args.response);
     }
   );
 
@@ -298,6 +310,23 @@ async function runSamplingVerification(
   let previousType: ChallengeType | undefined;
 
   for (let i = 0; i < sequence.length; i++) {
+    // Enforce hard session deadline before starting each round
+    if (isSessionPastDeadline(sessionId)) {
+      const failResult = {
+        passed: false,
+        response: "",
+        checks: [{ name: "session_deadline", passed: false, actual: "session time budget exceeded" }],
+        timeMs: 0,
+      };
+      for (let j = i; j < sequence.length; j++) {
+        const stub = generateChainedChallenge(j, difficulty, previousResponse, previousType);
+        recordRoundStart(sessionId, j, stub);
+        recordRoundResult(sessionId, j, "", failResult);
+        results.push({ passed: false });
+      }
+      break;
+    }
+
     // Generate challenge (chained from previous response if applicable)
     const challenge = generateChainedChallenge(
       i,
@@ -308,10 +337,10 @@ async function runSamplingVerification(
     const roundStartMs = Date.now();
     recordRoundStart(sessionId, i, challenge);
 
-    // Push challenge via sampling/createMessage
+    // Push challenge via sampling/createMessage with per-round timeout
     let samplingResult: unknown;
     try {
-      samplingResult = await extra.server.createMessage({
+      const samplingPromise = extra.server.createMessage({
         messages: [
           {
             role: "user" as const,
@@ -320,8 +349,12 @@ async function runSamplingVerification(
         ],
         maxTokens: challenge.maxTokens,
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Round timed out")), ROUND_TIMEOUT_MS)
+      );
+      samplingResult = await Promise.race([samplingPromise, timeoutPromise]);
     } catch (err) {
-      // Sampling failed — record as failed round
+      // Sampling failed or timed out — record as failed round
       const failResult = {
         passed: false,
         response: "",
@@ -344,7 +377,7 @@ async function runSamplingVerification(
     const responseText = extractSamplingResponseText(samplingResult);
 
     // Verify the response
-    const result = verifyResponse(challenge, responseText, roundStartMs);
+    const result = await verifyResponse(challenge, responseText, roundStartMs);
     recordRoundResult(sessionId, i, responseText, result);
     results.push({ passed: result.passed });
 
@@ -424,10 +457,10 @@ function runToolBasedFirstRound(
   };
 }
 
-function handleToolBasedResponse(
+async function handleToolBasedResponse(
   sessionId: string,
   responseText: string
-): { content: Array<{ type: "text"; text: string }> } {
+): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   const session = getSession(sessionId)!;
   const currentRound = session.currentRound;
   const round = session.rounds[currentRound];
@@ -445,10 +478,46 @@ function handleToolBasedResponse(
     };
   }
 
-  // Verify the response
+  // Enforce hard session deadline
+  if (isSessionPastDeadline(sessionId)) {
+    completeSession(sessionId, false);
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            verified: false,
+            session_id: sessionId,
+            reason: "Session time budget exceeded",
+            ...getSessionSummary(sessionId),
+          }),
+        },
+      ],
+    };
+  }
+
+  // Enforce per-round timeout
+  if (isRoundTimedOut(sessionId, currentRound)) {
+    const failResult = {
+      passed: false,
+      response: responseText,
+      checks: [{ name: "round_timeout", passed: false, actual: "Round exceeded 30s timeout" }],
+      timeMs: Date.now() - (round.startedAt ?? Date.now()),
+    };
+    recordRoundResult(sessionId, currentRound, responseText, failResult);
+
+    // Continue to next round or finish (don't abort the whole session for one timeout)
+  }
+
+  // Verify the response (skip if already recorded as timed out above)
   const roundStartMs = round.startedAt ?? Date.now();
-  const result = verifyResponse(round.challenge, responseText, roundStartMs);
-  recordRoundResult(sessionId, currentRound, responseText, result);
+  const alreadyRecorded = !!session.rounds[currentRound]?.result;
+  const result = alreadyRecorded
+    ? session.rounds[currentRound].result!
+    : await verifyResponse(round.challenge, responseText, roundStartMs);
+  if (!alreadyRecorded) {
+    recordRoundResult(sessionId, currentRound, responseText, result);
+  }
 
   const sequence = getSequence(session.config.difficulty);
   const nextRound = currentRound + 1;

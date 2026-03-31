@@ -1,13 +1,11 @@
 /**
- * Computed-Field Structured Output Challenge
+ * Computed-Field Challenge — generation and verification.
  *
- * Requires a JSON response where some fields need world knowledge
- * (a real city, its country) and other fields are mathematical
- * derivations of those knowledge-based fields (letter count, ASCII sum).
- *
- * Prior art: MoltCaptcha SMHL (mathematical constraints on text),
- * academic literature on structured output verification.
- * Contribution: Delivery via MCP Sampling within a persistent session.
+ * Generates prompts requiring a JSON response with two world-knowledge fields
+ * (city name and country) and two mathematically derived fields (letter count
+ * and ASCII sum of the city name). Verification checks JSON validity, schema,
+ * starting letter, the arithmetic, and city/country plausibility against a
+ * lookup table of known cities.
  */
 
 import { readFileSync } from "fs";

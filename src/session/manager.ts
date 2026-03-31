@@ -55,6 +55,22 @@ const sessions = new Map<string, VerificationSession>();
 // Auto-expire sessions after 5 minutes of inactivity
 const SESSION_TTL_MS = 5 * 60 * 1000;
 
+// Hard cap on concurrent sessions to prevent memory exhaustion (DoS)
+const MAX_CONCURRENT_SESSIONS = 100;
+
+/** Periodic cleanup interval (runs every 60 seconds). */
+const CLEANUP_INTERVAL_MS = 60 * 1000;
+let _cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+function ensureCleanupTimer(): void {
+  if (_cleanupTimer) return;
+  _cleanupTimer = setInterval(cleanExpiredSessions, CLEANUP_INTERVAL_MS);
+  // Allow the process to exit even if the timer is still active
+  if (_cleanupTimer && typeof _cleanupTimer === "object" && "unref" in _cleanupTimer) {
+    _cleanupTimer.unref();
+  }
+}
+
 function cleanExpiredSessions(): void {
   const now = Date.now();
   for (const [id, session] of sessions) {
@@ -73,6 +89,13 @@ export function createSession(
   mode: SessionMode
 ): VerificationSession {
   cleanExpiredSessions();
+  ensureCleanupTimer();
+
+  if (sessions.size >= MAX_CONCURRENT_SESSIONS) {
+    throw new Error(
+      "Too many concurrent verification sessions. Please try again later."
+    );
+  }
 
   const config = DIFFICULTY_CONFIG[difficulty] ?? DIFFICULTY_CONFIG.standard;
   const session: VerificationSession = {
@@ -170,6 +193,31 @@ export function isWithinTimeBudget(sessionId: string): boolean {
   const session = sessions.get(sessionId);
   if (!session) return false;
   return getElapsedMs(sessionId) <= session.config.timeBudgetMs;
+}
+
+/** Hard per-round timeout in milliseconds. */
+export const ROUND_TIMEOUT_MS = 30_000;
+
+/**
+ * Returns true if the session has exceeded its overall time budget deadline.
+ * Unlike isWithinTimeBudget (which is a soft post-hoc check), this is
+ * intended to be called *before* processing a round to reject stale sessions.
+ */
+export function isSessionPastDeadline(sessionId: string): boolean {
+  const session = sessions.get(sessionId);
+  if (!session?.startedAt) return false;
+  return Date.now() - session.startedAt > session.config.timeBudgetMs;
+}
+
+/**
+ * Returns true if the current round has exceeded the per-round timeout.
+ */
+export function isRoundTimedOut(sessionId: string, roundIndex: number): boolean {
+  const session = sessions.get(sessionId);
+  if (!session) return false;
+  const round = session.rounds[roundIndex];
+  if (!round?.startedAt) return false;
+  return Date.now() - round.startedAt > ROUND_TIMEOUT_MS;
 }
 
 export function getSessionSummary(sessionId: string): Record<string, unknown> {

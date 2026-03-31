@@ -1,39 +1,46 @@
 /**
- * Constrained Text Generation Challenge
+ * Constrained Text Challenge — generation and verification.
  *
- * Inspired by MoltCaptcha's SMHL (Semantic-Mathematical Hybrid Lock) approach.
- * Requires simultaneous satisfaction of semantic and structural constraints.
- *
- * Prior art: MoltCaptcha (SMHL), Clawptcha (timing constraints)
- * Contribution: Delivery via MCP Sampling within a persistent session.
+ * Generates prompts requiring a single sentence that satisfies four
+ * simultaneous constraints: starting letter, exact word count, a required
+ * keyword, and topical coherence. Verification checks all four, with topic
+ * relevance measured via cosine similarity (all-MiniLM-L6-v2, threshold ≥ 0.4).
  */
 
 import type { ChallengeParams, ChainContext, CheckResult } from "./types.js";
+import { checkTopicRelevance } from "../verification/embeddings.js";
 
 // ── Seed data ──────────────────────────────────────────────────────────────
 
-const TOPICS = [
-  "astronomy",
-  "marine biology",
-  "architecture",
-  "ancient history",
-  "renewable energy",
-  "music theory",
-  "glaciology",
-  "photography",
-  "volcanic geology",
-  "classical literature",
-  "robotics",
-  "meteorology",
-  "culinary arts",
-  "cartography",
-  "quantum physics",
-  "typography",
-  "mycology",
-  "aviation",
-  "paleontology",
-  "cryptography",
-];
+/**
+ * Topic descriptions used for both prompt generation and cosine similarity
+ * comparison. Using descriptive phrases (rather than bare keywords) produces
+ * higher-quality embeddings and more accurate relevance scoring.
+ */
+const TOPIC_DESCRIPTIONS: Record<string, string> = {
+  astronomy: "astronomy, the scientific study of stars, planets, galaxies, and the universe",
+  "marine biology": "marine biology, the study of ocean ecosystems, coral reefs, and sea life",
+  architecture: "architecture, the art and science of designing buildings and structures",
+  "ancient history": "ancient history, the study of early civilizations, empires, and archaeological artifacts",
+  "renewable energy": "renewable energy, including solar power, wind turbines, and sustainable technology",
+  "music theory": "music theory, the study of harmony, melody, rhythm, and musical composition",
+  glaciology: "glaciology, the study of glaciers, ice sheets, and polar environments",
+  photography: "photography, the art of capturing images using cameras, lenses, and light",
+  "volcanic geology": "volcanic geology, the study of volcanoes, lava flows, and tectonic activity",
+  "classical literature": "classical literature, including novels, epic poetry, and literary criticism",
+  robotics: "robotics, the engineering of autonomous machines, sensors, and control systems",
+  meteorology: "meteorology, the study of weather patterns, storms, and atmospheric science",
+  "culinary arts": "culinary arts, the practice of cooking, flavor development, and gastronomy",
+  cartography: "cartography, the science of mapmaking, terrain analysis, and geographic visualization",
+  "quantum physics": "quantum physics, the study of subatomic particles, wave-particle duality, and quantum fields",
+  typography: "typography, the design of fonts, letterforms, and the art of arranging type",
+  mycology: "mycology, the study of fungi, mushrooms, spores, and fungal ecosystems",
+  aviation: "aviation, the science and practice of flight, aircraft design, and piloting",
+  paleontology: "paleontology, the study of fossils, dinosaurs, and prehistoric life",
+  cryptography: "cryptography, the science of encoding and decoding secret messages and secure communication",
+};
+
+const TOPICS = Object.keys(TOPIC_DESCRIPTIONS);
 
 const REQUIRED_WORDS: Record<string, string[]> = {
   astronomy: ["star", "orbit", "planet", "galaxy", "solar", "telescope", "light", "cosmic"],
@@ -115,10 +122,10 @@ export function generateConstrainedTextChallenge(
 
 // ── Verification ───────────────────────────────────────────────────────────
 
-export function verifyConstrainedText(
+export async function verifyConstrainedText(
   response: string,
   constraints: Record<string, unknown>
-): { passed: boolean; checks: CheckResult[] } {
+): Promise<{ passed: boolean; checks: CheckResult[] }> {
   const text = response.trim().replace(/^["']|["']$/g, ""); // strip wrapping quotes
   const checks: CheckResult[] = [];
 
@@ -156,13 +163,21 @@ export function verifyConstrainedText(
     });
   }
 
-  // Check 4: Non-trivial (not just repeating the same word)
-  const uniqueWords = new Set(words.map((w) => w.toLowerCase()));
+  // Check 4: Topic relevance via cosine similarity (all-MiniLM-L6-v2, threshold ≥ 0.55)
+  // Uses the full topic description for a higher-quality embedding anchor.
+  const topic = constraints.topic as string;
+  const topicDescription = TOPIC_DESCRIPTIONS[topic] ?? topic;
+  const SIMILARITY_THRESHOLD = 0.55;
+  const { passed: topicPassed, score } = await checkTopicRelevance(
+    text,
+    topicDescription,
+    SIMILARITY_THRESHOLD
+  );
   checks.push({
-    name: "non_trivial",
-    passed: uniqueWords.size >= Math.min(4, words.length),
-    expected: "≥4 unique words",
-    actual: String(uniqueWords.size),
+    name: "topic_relevance",
+    passed: topicPassed,
+    expected: `cosine similarity ≥ ${SIMILARITY_THRESHOLD} (topic: "${topic}")`,
+    actual: score.toFixed(3),
   });
 
   const passed = checks.every((c) => c.passed);

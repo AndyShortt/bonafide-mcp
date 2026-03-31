@@ -3,5 +3,29 @@ dist/
 website/dist/
 *.js.map
 *.d.ts.map
+
+# Environment and secrets
 .env
+.env.*
+.env.local
+.env.production
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Log files
+*.log
+npm-debug.log*
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Editor/IDE
+.claude/
+.vscode/
+.idea/
