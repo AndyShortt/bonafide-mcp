@@ -12,28 +12,35 @@ import { checkTopicRelevance } from "../verification/embeddings.js";
 
 // ── Seed data ──────────────────────────────────────────────────────────────
 
-const TOPICS = [
-  "astronomy",
-  "marine biology",
-  "architecture",
-  "ancient history",
-  "renewable energy",
-  "music theory",
-  "glaciology",
-  "photography",
-  "volcanic geology",
-  "classical literature",
-  "robotics",
-  "meteorology",
-  "culinary arts",
-  "cartography",
-  "quantum physics",
-  "typography",
-  "mycology",
-  "aviation",
-  "paleontology",
-  "cryptography",
-];
+/**
+ * Topic descriptions used for both prompt generation and cosine similarity
+ * comparison. Using descriptive phrases (rather than bare keywords) produces
+ * higher-quality embeddings and more accurate relevance scoring.
+ */
+const TOPIC_DESCRIPTIONS: Record<string, string> = {
+  astronomy: "astronomy, the scientific study of stars, planets, galaxies, and the universe",
+  "marine biology": "marine biology, the study of ocean ecosystems, coral reefs, and sea life",
+  architecture: "architecture, the art and science of designing buildings and structures",
+  "ancient history": "ancient history, the study of early civilizations, empires, and archaeological artifacts",
+  "renewable energy": "renewable energy, including solar power, wind turbines, and sustainable technology",
+  "music theory": "music theory, the study of harmony, melody, rhythm, and musical composition",
+  glaciology: "glaciology, the study of glaciers, ice sheets, and polar environments",
+  photography: "photography, the art of capturing images using cameras, lenses, and light",
+  "volcanic geology": "volcanic geology, the study of volcanoes, lava flows, and tectonic activity",
+  "classical literature": "classical literature, including novels, epic poetry, and literary criticism",
+  robotics: "robotics, the engineering of autonomous machines, sensors, and control systems",
+  meteorology: "meteorology, the study of weather patterns, storms, and atmospheric science",
+  "culinary arts": "culinary arts, the practice of cooking, flavor development, and gastronomy",
+  cartography: "cartography, the science of mapmaking, terrain analysis, and geographic visualization",
+  "quantum physics": "quantum physics, the study of subatomic particles, wave-particle duality, and quantum fields",
+  typography: "typography, the design of fonts, letterforms, and the art of arranging type",
+  mycology: "mycology, the study of fungi, mushrooms, spores, and fungal ecosystems",
+  aviation: "aviation, the science and practice of flight, aircraft design, and piloting",
+  paleontology: "paleontology, the study of fossils, dinosaurs, and prehistoric life",
+  cryptography: "cryptography, the science of encoding and decoding secret messages and secure communication",
+};
+
+const TOPICS = Object.keys(TOPIC_DESCRIPTIONS);
 
 const REQUIRED_WORDS: Record<string, string[]> = {
   astronomy: ["star", "orbit", "planet", "galaxy", "solar", "telescope", "light", "cosmic"],
@@ -156,14 +163,14 @@ export async function verifyConstrainedText(
     });
   }
 
-  // Check 4: Topic relevance via cosine similarity (all-MiniLM-L6-v2, threshold ≥ 0.4)
-  // This enforces that the response was produced by an LLM reasoning about the topic,
-  // not by a bot pattern-matching topic keywords into an otherwise unrelated sentence.
+  // Check 4: Topic relevance via cosine similarity (all-MiniLM-L6-v2, threshold ≥ 0.55)
+  // Uses the full topic description for a higher-quality embedding anchor.
   const topic = constraints.topic as string;
-  const SIMILARITY_THRESHOLD = 0.4;
+  const topicDescription = TOPIC_DESCRIPTIONS[topic] ?? topic;
+  const SIMILARITY_THRESHOLD = 0.55;
   const { passed: topicPassed, score } = await checkTopicRelevance(
     text,
-    topic,
+    topicDescription,
     SIMILARITY_THRESHOLD
   );
   checks.push({

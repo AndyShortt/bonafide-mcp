@@ -116,8 +116,18 @@ Environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `BONAFIDE_JWT_SECRET` | `bonafide-mcp-dev-secret-...` | JWT signing secret (change in production!) |
+| `BONAFIDE_EC_PRIVATE_KEY` | *(ephemeral key generated at startup)* | PEM-encoded EC P-256 private key for JWT signing. **Required for production.** |
 | `BONAFIDE_ISSUER` | `bonafide.localhost` | JWT issuer claim |
+
+To generate a key pair:
+
+```bash
+openssl ecparam -genkey -name prime256v1 -noout | openssl pkcs8 -topk8 -nocrypt -out bonafide.pem
+openssl ec -in bonafide.pem -pubout -out bonafide.pub
+export BONAFIDE_EC_PRIVATE_KEY="$(cat bonafide.pem)"
+```
+
+If `BONAFIDE_EC_PRIVATE_KEY` is not set, the server generates an ephemeral key pair on startup and logs a warning. Tokens issued with an ephemeral key will not survive a server restart.
 
 ## Project Structure
 
@@ -158,6 +168,20 @@ BonafideMCP builds on work by others:
 BonafideMCP is not unbreakable. A sufficiently motivated adversary with a fast LLM endpoint and an optimized MCP relay could potentially pass verification. The system raises the bar significantly compared to HTTP-based verification, but it is not a cryptographic guarantee.
 
 For stronger assurance, combine BonafideMCP with cryptographic identity (Web Bot Auth, client certificates).
+
+## Security Considerations
+
+BonafideMCP is a **research project and reference implementation**. It has not undergone a formal security audit and should be evaluated carefully before use in any production or trust-bearing context.
+
+Known design and implementation limitations to consider:
+
+- **Proof-of-AI, not proof-of-identity.** Passing verification proves that the connecting system has access to a capable LLM, not that any specific agent or user is authorized. A relay that forwards challenges to another LLM could pass. For identity assurance, combine BonafideMCP with cryptographic mechanisms (client certificates, Web Bot Auth).
+- **Tool-based mode is weaker.** In tool-based fallback mode, challenges are returned as plaintext tool results visible to any middleware in the stack. Sampling mode pushes challenges directly into the model and is meaningfully more resistant to proxy attacks.
+- **In-memory session store.** All sessions and tokens are held in process memory and are lost on restart. There is no persistence layer, clustering support, or token revocation mechanism. Issued JWTs are valid until they expire (15 minutes).
+- **No per-client rate limiting.** The server enforces a global cap on concurrent sessions (100) but does not rate-limit individual clients. A single client could exhaust the session pool.
+- **Challenge predictability.** Challenge parameters (topics, letters, word counts) are selected using `Math.random()`, which is not cryptographically secure. An adversary who can predict the RNG state could pre-compute responses.
+
+If you discover a security issue, please report it via [GitHub Issues](https://github.com/AndyShortt/bonafide-mcp/issues).
 
 ## License
 

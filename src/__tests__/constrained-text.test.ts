@@ -158,8 +158,8 @@ describe("verifyConstrainedText", () => {
 
     expect(mockedCheckTopicRelevance).toHaveBeenCalledWith(
       "Salty ocean waves crash here",
-      "marine biology",
-      0.4
+      "marine biology, the study of ocean ecosystems, coral reefs, and sea life",
+      0.55
     );
   });
 
