@@ -1,0 +1,47 @@
+name: Integration Tests
+
+# Run on every PR and on direct pushes to main.
+# Unit tests (npm test) are expected to pass locally before a PR is opened.
+# This workflow validates the one thing unit tests can't cover: that the
+# all-MiniLM-L6-v2 embedding model produces correct similarity scores.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  integration:
+    name: Embedding model integration tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # Cache the HuggingFace model weights so the 23 MB all-MiniLM-L6-v2
+      # download only happens on the first run. The cache key includes the
+      # package-lock hash so a dependency bump (e.g. new transformers version)
+      # automatically invalidates it and re-downloads.
+      - name: Cache HuggingFace model weights
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub
+          key: hf-all-MiniLM-L6-v2-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            hf-all-MiniLM-L6-v2-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          # Suppress HuggingFace progress bars in CI logs
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
