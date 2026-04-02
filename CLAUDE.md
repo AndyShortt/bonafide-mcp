@@ -67,3 +67,7 @@ Unit tests mock the embeddings module (`src/verification/embeddings.ts`) to avoi
 ## Module System
 
 The project uses ESM (`"type": "module"` in package.json, `"module": "Node16"` in tsconfig). Import paths in source must include `.js` extensions for compiled output compatibility.
+
+## Git Commits
+
+Do not include `Co-Authored-By` attribution lines in commit messages.
