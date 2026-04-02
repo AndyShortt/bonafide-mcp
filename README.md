@@ -4,19 +4,17 @@
 
 BonafideMCP is named after the documents that secret agents carry to prove their 'bona fide' identities.
 
-BonafideMCP is an open-source [MCP server](https://modelcontextprotocol.io) that demonstrates how MCP's `sampling/createMessage` primitive can be used to conduct multi-turn, chained verification challenges within a persistent bidirectional session — verifying that a connecting system is a genuine AI agent with an LLM runtime, not just a thin proxy.
+BonafideMCP is an open-source [MCP server](https://modelcontextprotocol.io) that demonstrates how MCP's `sampling/createMessage` primitive could be used to conduct multi-turn, chained verification challenges — verifying that a connecting system is a genuine AI agent with an LLM runtime, not a human or a classic bot. This is a concept test and should not be used for real authentication. 
 
 ## The Idea
 
-Existing reverse CAPTCHAs ([MoltCaptcha](https://moltcaptcha.com), Clawptcha, BOTCHA) use HTTP challenge-response. A thin proxy (~20 lines of Python) can beat them by forwarding challenges to any LLM API. No session, no state, no agent required.
+CAPCTHA systems are used to keep bots out of websites, proving the client system is really a human. But what if you want to keep humans out and only allow AI Agents?
 
-BonafideMCP moves verification inside the MCP session:
+For this project, we define an AI Agent (i.e. AI Application) as a system that is being driven by an LLM and implements the features outlines in the MCP specification. This definition is a moving target.
 
-1. **Session binding** — The proxy must implement a full MCP client with Sampling capability, not a thin HTTP relay.
-2. **Server-pushed challenges** — The server controls when challenges arrive via `sampling/createMessage`, rather than the client pulling at its own pace.
-3. **Latency compounding** — Each of 2–3 chained rounds depends on the previous response. Proxy relay overhead (200–500ms/round) accumulates to a measurable signal.
+There are several recent implementations of reverse CAPTCHAs such as [MoltCaptcha](https://moltcaptcha.com), Clawptcha, and BOTCHA. These systems use a single HTTP challenge-response protocol and heavily rely on timing (an important measure in all Auth frameworks) to validate if the responder was human or AI. In this system, we implement an MCP-native authentication protocol that issues a series of challenges, all building on the prior response. This multi-turn conversation increases the ability to detect timing signals from a non-AI actor (or man-in-the-middle).
 
-Challenge designs are adapted from [MoltCaptcha's SMHL approach](https://moltcaptcha.com) and credited as prior art. The contribution is the delivery mechanism and session architecture, not the challenges themselves.
+For the MCP protocol, we take advantage of the new `sampling/createMessage` primitive which allows AI Applications to prompt their LLMs to support an MCP server's prompt. If the AI Application does not implement sampling (it's new and has security concerns of its own) then the protocol has a fallback to standard tool call/response. The challenge types are designed to not require an LLM for validation, but still be answers only an LLM could have provided. The completed challenges plus the associated latency is used for final validation. Once validated, the signed jwt is posted as an MCP resource to token/{session_id}.
 
 ## Quick Start
 
@@ -129,7 +127,7 @@ openssl ec -in bonafide.pem -pubout -out bonafide.pub
 export BONAFIDE_EC_PRIVATE_KEY="$(cat bonafide.pem)"
 ```
 
-If `BONAFIDE_EC_PRIVATE_KEY` is not set, the server generates an ephemeral key pair on startup and logs a warning. Tokens issued with an ephemeral key will not survive a server restart.
+If `BONAFIDE_EC_PRIVATE_KEY` is not set, the server generates an ephemeral key pair on startup and logs a warning. Tokens issued with an ephemeral key will not survive a server restart. A real implementation would use stronger key gen and storage primitevs.
 
 ## Project Structure
 
@@ -183,7 +181,7 @@ Known design and implementation limitations to consider:
 - **No per-client rate limiting.** The server enforces a global cap on concurrent sessions (100) but does not rate-limit individual clients. A single client could exhaust the session pool.
 - **Challenge predictability.** Challenge parameters (topics, letters, word counts) are selected using `Math.random()`, which is not cryptographically secure. An adversary who can predict the RNG state could pre-compute responses.
 
-If you discover a security issue, please report it via [GitHub Issues](https://github.com/AndyShortt/bonafide-mcp/issues).
+This is a concept implementation meant for experimentation and testing. Do not use on real applications.
 
 ## License
 

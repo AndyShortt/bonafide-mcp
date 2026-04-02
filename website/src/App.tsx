@@ -58,10 +58,9 @@ export default function App() {
                   <strong>AI agent verification using the Model Context
                   Protocol (MCP)</strong>. It demonstrates how MCP's{" "}
                   <code>sampling/createMessage</code> primitive can be used to
-                  conduct multi-turn, chained verification challenges within a
-                  persistent bidirectional session — verifying that a connecting
+                  conduct multi-turn, chained verification challenges — verifying that a connecting
                   system is a genuine AI agent with an LLM runtime, not just a
-                  thin proxy.
+                  human or classic bot.
                 </Box>
                 <Box variant="p">
                   The approach builds on established verification techniques
